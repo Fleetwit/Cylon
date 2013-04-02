@@ -77,7 +77,6 @@ datastore.prototype.incr = function(collection, criteria, value, callback) {
 	
 	
 	collection.findAndModify(criteria, [['_id','asc']], {$set:{updated:true}, $inc: {value: value}}, {}, function(err, data) {
-		console.log("findAndModify :: ",err, data);
 		if (err) {
 			// couldn't update, let's create
 			collection.update(_.extend({value:value},criteria), {$set: buffer}, {upsert:true}, function(err2, data2) {
@@ -85,13 +84,7 @@ datastore.prototype.incr = function(collection, criteria, value, callback) {
 					callback(data3)
 				});
 			});
-			/*scope.set(collection, 'value', value, function(err2, data2) {
-				scope.get(collection, 'value', function(data3) {
-					callback(data3)
-				});
-			});*/
 		} else {
-			//console.log("data:",data);
 			callback(data);
 		}
 	});

@@ -18,14 +18,13 @@ function cylon() {
 	this.logger 	= new _logger({label:'Cylon:'+process.pid});
 	this.raceData	= {};		// Data on all the races
 	this.count		= {};		// Number of users per race and per level
-	this.incr		= {};		// Increment on the number of users per race and per level since last update
 	this.players	= {};		// List of players online per race and per level
 	this.playerAdd	= {};		// List of players to add per race and per level
 	this.playerDel	= {};		// List of players to remove per race and per level
 	this.clients	= {};		// Active clients on this process (with circular reference)
 	this.interval	= {
-		refresh:		5000000,	// Refresh of race data
-		update:			10000		// Refresh of online count
+		refresh:		60*5000,	// Refresh of race data
+		update:			1000		// Refresh of online count
 	};
 	this.init();
 };
@@ -49,21 +48,17 @@ cylon.prototype.init = function() {
 				scope.refreshData(function() {
 					
 					scope.updateCount(function() {
-						scope.logger.log("\n updateCount ONLINE\n");
 						scope.serverInit();
+						// Start the intervals
+						setInterval(function() {
+							scope.refreshData(function() {});
+						}, scope.interval.refresh);
+						
+						setInterval(function() {
+							scope.updateCount(function() {});
+						}, scope.interval.update);
 					});
 				});
-				
-				// Start the intervals
-				setInterval(function() {
-					scope.refreshData(function() {});
-				}, scope.interval.refresh);
-				
-				setInterval(function() {
-					scope.updateCount(function() {
-						//scope.logger.error(scope.players);
-					});
-				}, scope.interval.update);
 			});
 		});
 	});
@@ -78,7 +73,6 @@ cylon.prototype.serverInit = function() {
 		},
 		onReceive:	function(client, data) {
 			if (data.raceToken) {
-				scope.logger.log("Receiving:",data.raceToken);
 				scope.auth(data.raceToken, function(success, user) {
 					if (success) {
 						// register user
@@ -86,13 +80,12 @@ cylon.prototype.serverInit = function() {
 						
 						// Give the user the current online count + milliseconds before the race starts
 						scope.server.send(client.uid, {
-							online:	scope.count[user.rid],
+							online:	scope.count,
 							timer:	new Date(scope.raceData[user.rid].start_time*1000).getTime()-new Date().getTime()
 						});
 					} else {
 						scope.server.send(client.uid, {invalidRaceToken: true});
-					}
-					scope.logger.error("user online",user);
+					};
 				});
 			}
 			if (data.level) {
@@ -100,11 +93,9 @@ cylon.prototype.serverInit = function() {
 			}
 		},
 		onQuit:	function(client) {
-			var user 			= scope.clients[client.uid].data;
-			var currentLevel 	= user.level;
-			scope.incr[user.rid][currentLevel]		-= 1;
-			scope.count[user.rid][currentLevel]		-= 1;
-			delete scope.players[user.rid][currentLevel][user.id];
+			
+			scope.deleteUser(client, scope.clients[client.uid].data);
+			
 			
 		}
 	});
@@ -134,14 +125,8 @@ cylon.prototype.refreshData = function(callback) {
 							if (!scope.count[rows[i].id]) {
 								scope.count[rows[i].id] = {};
 							}
-							if (!scope.incr[rows[i].id]) {
-								scope.incr[rows[i].id] = {};
-							}
 							if (!scope.count[rows[i].id].total) {
 								scope.count[rows[i].id].total = 0;
-							}
-							if (!scope.incr[rows[i].id].total) {
-								scope.incr[rows[i].id].total = 0;
 							}
 							if (!scope.players[rows[i].id]) {
 								scope.players[rows[i].id] = {};
@@ -152,15 +137,9 @@ cylon.prototype.refreshData = function(callback) {
 							if (!scope.playerDel[rows[i].id]) {
 								scope.playerDel[rows[i].id] = {};
 							}
-							/*if (!scope.clients[rows[i].id]) {
-								scope.clients[rows[i].id] = {};
-							}*/
 							for (j=0;j<=rows[i].levels;j++) {
 								if (!scope.count[rows[i].id][j]) {
 									scope.count[rows[i].id][j] = 0;
-								}
-								if (!scope.incr[rows[i].id][j]) {
-									scope.incr[rows[i].id][j] = 0;
 								}
 								if (!scope.players[rows[i].id][j]) {
 									scope.players[rows[i].id][j] = {};
@@ -181,36 +160,12 @@ cylon.prototype.updateCount = function(callback) {
 	var scope = this;
 	// get the races data
 	this.mongo.open("cylon", function(collection) {
-		//scope.logger.log("MONGO OPENED");
 		var stack = new _stack();
 		
-		// Update the number of users online
-		for (i in scope.raceData) {
-			for (j=0;j<=scope.raceData[i].levels;j++) {
-				// Update the var
-				stack.add(function(params, onFinish) {
-					var x = params.i;
-					var y = params.j;
-					//console.log("INCR",{count:true, rid: scope.raceData[x].id, level: y});
-					scope.mongo.incr(collection, {count:true, rid: scope.raceData[x].id, level: y}, scope.incr[scope.raceData[x].id][y], function(data) {
-						// update the count
-						scope.count[scope.raceData[x].id][y] = data.value;
-						// reset the incr value
-						scope.incr[scope.raceData[x].id][y]	= 0;
-						onFinish();
-					});
-				}, _.extend({},{i:i,j:j}));
-			}
-		}
-		
-		// Update the client list
-		// Add players
-		
-		//console.log("scope.playerAdd:: ",scope.playerAdd);
+		// Add new players to their levels
 		for (i in scope.playerAdd) {
 			stack.add(function(params, onFinish) {
 				params.collection.update({players: true, rid:params.i}, {$set: scope.playerAdd[params.i]}, {upsert:true}, function(err, data) {
-					//scope.logger.error("********doc.list********",doc.list);
 					scope.playerAdd[params.i] = {}; // reset the list
 					onFinish();
 				});
@@ -225,27 +180,33 @@ cylon.prototype.updateCount = function(callback) {
 				});
 			}, _.extend({},{i:i,collection:collection}));
 		}
-		// Remove players
 		
+		// Update players list
 		for (i in scope.players) {
 			stack.add(function(params, onFinish) {
 				params.collection.find({players: true, rid:params.i}, {}).toArray(function(err, doc) {
 					if (!doc.list) {
 						doc.list = {};
 					}
-					//scope.logger.error("********doc.list********",err,doc.list);
 					scope.players[doc.rid] = doc.list;
 					onFinish();
 				});
 			}, _.extend({},{i:i,collection:collection}));
 		}
 		
+		// Recalculate the number of player per level
+		stack.add(function(params, onFinish) {
+			scope.computeCount(function() {
+				onFinish();
+			});
+		}, {});
+		
+		
 		// everything is updated
 		stack.process(function() {
 			if (scope.server) {
 				scope.server.broadcast({
 					count:	scope.count,
-					incr:	scope.incr,
 					players:{
 						players:	scope.players,
 						playerAdd:	scope.playerAdd,
@@ -253,8 +214,6 @@ cylon.prototype.updateCount = function(callback) {
 					}
 				});
 			}
-			
-			console.log("DONE");
 			callback();
 		});
 		
@@ -289,10 +248,6 @@ cylon.prototype.registerUser = function(client, user) {
 	// remove the user from the Delete list, in case he was there (case: disconnect-reconnect in less than 500ms)
 	delete scope.playerDel[user.rid]["0."+user.id];
 	
-	// Increment the online count
-	scope.incr[user.rid][0]		+= 1;
-	scope.count[user.rid][0]	+= 1;
-	
 	scope.server.send(client.uid, {
 		players:	scope.players,
 		playerAdd:	scope.playerAdd,
@@ -318,14 +273,6 @@ cylon.prototype.userSetLevel = function(client, level) {
 	scope.playerAdd[user.rid][level+"."+user.id] 	= userObject;
 	scope.players[user.rid][level][user.id] 		= userObject;
 	
-	// Decrement the online count for previous level
-	scope.incr[user.rid][currentLevel]		-= 1;
-	scope.count[user.rid][currentLevel]		-= 1;
-	
-	// Increment the online count for the new level
-	scope.incr[user.rid][level]				+= 1;
-	scope.count[user.rid][level]			+= 1;
-	
 	// update the level locally
 	this.clients[client.uid].data.level = level;
 	
@@ -336,14 +283,33 @@ cylon.prototype.userSetLevel = function(client, level) {
 		userObject:	userObject
 	});
 };
-/*
+
 cylon.prototype.deleteUser = function(client, user) {
-	var scope = this;
+	var scope 			= this;
+	
 	delete scope.players[user.rid][user.level];				// Remove from the list of players
-	delete scope.playerAdd[user.rid]["list."+user.id];		// Remove from the list of new players
-	delete scope.clients[user.rid][user.id];				// Remove from the list of clients
-	scope.playerDel[user.rid]["list."+user.id]	= user;		// Remove from the online store
-}*/
+	delete scope.playerAdd[user.rid][user.level+"."+user.id];		// Remove from the list of new players
+	delete scope.clients[client.uid];				// Remove from the list of clients
+	scope.playerDel[user.rid][user.level+"."+user.id]	= user;		// Remove from the online store
+}
+cylon.prototype.computeCount = function(callback) {
+	var scope = this;
+	var i;
+	var j;
+	var k;
+	for (i in this.players) {
+		if (!this.count[i]) {
+			this.count[i] = {};
+		}
+		for (j in this.players[i]) {
+			if (!this.count[i][j]) {
+				this.count[i][j] = 0;
+			}
+			this.count[i][j] = Object.keys(this.players[i][j]).length;
+		}
+	}
+	callback();
+};
 cylon.prototype.auth = function(raceToken, onAuth) {
 	var scope = this;
 	// Check if the raceToken is valid
