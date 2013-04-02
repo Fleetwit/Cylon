@@ -1,0 +1,47 @@
+<!DOCTYPE HTML>
+<html lang="en-US">
+<head>
+	<title>Fleet Protocol Test</title>
+	<meta charset="UTF-8">
+	<script type="text/javascript" src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+	<script type="text/javascript" src="json2.js"></script>
+	<script type="text/javascript" src="fleet.js"></script>
+</head>
+<body>
+	<button data-action="connect">Connect</button>
+	<button data-action="auth">Auth</button>
+	<button data-action="levelup">level up</button>
+	<input type="text" name="" id="msg" /><button data-action="send">Send</button>
+	<hr />
+	<div class="log">
+		
+	</div>
+	<script type="text/javascript">
+		
+		var ws;
+		var fp;
+		var level = 1;
+		
+		$(function() {
+			$("[data-action]").click(function() {
+				switch ($(this).data("action")) {
+					case "connect":
+						ws = new fleet.ws("ws://localhost:8080");
+					break;
+					case "send":
+						ws.send($("#msg").val());
+					break;
+					case "auth":
+						ws.send({raceToken: '0c8b800b-2fad-4195-a3b6-d2b30d827dce'});
+					break;
+					case "levelup":
+						ws.send({level: level});
+						level++;
+					break;
+				}
+			});
+			
+		});
+	</script>
+</body>
+</html>
