@@ -108,7 +108,6 @@ simpleserver.prototype.onClose  = function(ws, uid, message) {
 	WS:SEND
 ****************/
 simpleserver.prototype.send = function(uid, data) {
-	//this.log("Sending to "+uid, data);
 	this.users[uid].ws.send(this.wsencode(data));
 }
 

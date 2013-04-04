@@ -24,7 +24,7 @@ function cylon() {
 	this.clients	= {};		// Active clients on this process (with circular reference)
 	this.interval	= {
 		refresh:		60*5000,	// Refresh of race data
-		update:			1000		// Refresh of online count
+		update:			20000		// Refresh of online count
 	};
 	this.init();
 };
@@ -79,22 +79,50 @@ cylon.prototype.serverInit = function() {
 						scope.registerUser(client, user);
 						
 						// Give the user the current online count + milliseconds before the race starts
-						scope.server.send(client.uid, {
+						var response = {
 							online:	scope.count,
 							timer:	new Date(scope.raceData[user.rid].start_time*1000).getTime()-new Date().getTime()
-						});
+						};
+						if (data.ask_id) {
+							response.response_id = data.ask_id;
+						}
+						scope.server.send(client.uid, response);
 					} else {
-						scope.server.send(client.uid, {invalidRaceToken: true});
+						var response = {invalidRaceToken: true};
+						if (data.ask_id) {
+							response.response_id = data.ask_id;
+						}
+						scope.server.send(client.uid, response);
 					};
 				});
-			}
-			if (data.level) {
-				scope.userSetLevel(client, data.level);
+			} else if (data.level) {
+				scope.userSetLevel(client, data.level, data.ask_id);
+			} else if (data.getUpdate) {
+				var response = {online: scope.count};
+				if (data.ask_id) {
+					response.response_id = data.ask_id;
+				}
+				scope.server.send(client.uid, response);
+			} else if (data.scores) {
+				scope.saveScore(client, data.scores, data.ask_id);
+				var response = {sent: true};
+				if (data.ask_id) {
+					response.response_id = data.ask_id;
+				}
+				scope.server.send(client.uid, response);
+			} else if (data.crashtest) {
+				crashnow();
+			} else {
+				var response = {failed: true};
+				if (data.ask_id) {
+					response.response_id = data.ask_id;
+				}
+				scope.server.send(client.uid, response);
 			}
 		},
 		onQuit:	function(client) {
 			
-			scope.deleteUser(client, scope.clients[client.uid].data);
+			scope.deleteUser(client);
 			
 			
 		}
@@ -124,9 +152,6 @@ cylon.prototype.refreshData = function(callback) {
 							// Create the objects if they don't exist yet
 							if (!scope.count[rows[i].id]) {
 								scope.count[rows[i].id] = {};
-							}
-							if (!scope.count[rows[i].id].total) {
-								scope.count[rows[i].id].total = 0;
 							}
 							if (!scope.players[rows[i].id]) {
 								scope.players[rows[i].id] = {};
@@ -185,14 +210,33 @@ cylon.prototype.updateCount = function(callback) {
 		for (i in scope.players) {
 			stack.add(function(params, onFinish) {
 				params.collection.find({players: true, rid:params.i}, {}).toArray(function(err, doc) {
-					if (!doc.list) {
-						doc.list = {};
+					if (!doc[0].list) {
+						doc[0].list = {};
 					}
-					scope.players[doc.rid] = doc.list;
+					scope.players[params.i] = doc[0].list;
 					onFinish();
 				});
 			}, _.extend({},{i:i,collection:collection}));
 		}
+		
+		// Reformat the object
+		stack.add(function(params, onFinish) {
+			var i;
+			var j;
+			for (i in scope.raceData) {
+				// Create the objects if they don't exist yet
+				if (!scope.players[scope.raceData[i].id]) {
+					scope.players[scope.raceData[i].id] = {};
+				}
+				for (j=0;j<=scope.raceData[i].levels;j++) {
+					if (!scope.players[scope.raceData[i].id][j]) {
+						scope.players[scope.raceData[i].id][j] = {};
+					}
+				}
+			}
+			
+			onFinish();
+		}, {});
 		
 		// Recalculate the number of player per level
 		stack.add(function(params, onFinish) {
@@ -201,17 +245,12 @@ cylon.prototype.updateCount = function(callback) {
 			});
 		}, {});
 		
-		
 		// everything is updated
 		stack.process(function() {
 			if (scope.server) {
 				scope.server.broadcast({
-					count:	scope.count,
-					players:{
-						players:	scope.players,
-						playerAdd:	scope.playerAdd,
-						playerDel:	scope.playerDel
-					}
+					online:		scope.count,
+					players:	scope.players
 				});
 			}
 			callback();
@@ -234,19 +273,21 @@ cylon.prototype.registerUser = function(client, user) {
 	var scope = this;
 	
 	// Register in the list of clients
-	scope.clients[client.uid]	= {		// register by uid
+	this.clients[client.uid]	= {		// register by uid
 		client:	client,
 		data:	_.extend({level: 0},user)
 	};
 	
-	// Register the user to his race
-	scope.players[user.rid][0][user.id]	= user;
+	// Register the user to his race, at level #0 (start screen)
+	if (scope.players[user.rid] && scope.players[user.rid][0]) {
+		scope.players[user.rid][0][user.id]	= user;
+	}
 	
 	// Add to the push list
-	scope.playerAdd[user.rid]["0."+user.id]	= user;
+	scope.playerAdd[user.rid]["list."+"0."+user.id]	= user;
 	
 	// remove the user from the Delete list, in case he was there (case: disconnect-reconnect in less than 500ms)
-	delete scope.playerDel[user.rid]["0."+user.id];
+	delete scope.playerDel[user.rid]["list."+"0."+user.id];
 	
 	scope.server.send(client.uid, {
 		players:	scope.players,
@@ -254,43 +295,70 @@ cylon.prototype.registerUser = function(client, user) {
 		playerDel:	scope.playerDel
 	});
 };
-cylon.prototype.userSetLevel = function(client, level) {
+cylon.prototype.userSetLevel = function(client, level, ask_id) {
 	var scope 			= this;
 	var user 			= this.clients[client.uid].data;
 	var currentLevel 	= user.level;
 	
+	if (!scope.players[user.rid]) {
+		scope.players[user.rid] = {};
+	}
+	if (!scope.players[user.rid][level]) {
+		scope.players[user.rid][level] = {};
+	}
+	
 	var userObject		= _.extend({},scope.players[user.rid][currentLevel][user.id]);
 	
 	// Remove the user from the current level
-	delete scope.playerAdd[user.rid][currentLevel+"."+user.id];
-	delete scope.playerDel[user.rid][currentLevel+"."+user.id];
+	delete scope.playerAdd[user.rid]["list."+currentLevel+"."+user.id];
+	delete scope.playerDel[user.rid]["list."+currentLevel+"."+user.id];
 	delete scope.players[user.rid][currentLevel][user.id];
 	
 	// Remove the online reference
-	scope.playerDel[user.rid][currentLevel+"."+user.id] = userObject;
+	scope.playerDel[user.rid]["list."+currentLevel+"."+user.id] = userObject;
 	
 	// Register to the new level
-	scope.playerAdd[user.rid][level+"."+user.id] 	= userObject;
-	scope.players[user.rid][level][user.id] 		= userObject;
+	scope.playerAdd[user.rid]["list."+level+"."+user.id] 	= userObject;
 	
 	// update the level locally
 	this.clients[client.uid].data.level = level;
 	
-	scope.server.send(client.uid, {
-		players:	scope.players,
-		playerAdd:	scope.playerAdd,
-		playerDel:	scope.playerDel,
-		userObject:	userObject
-	});
+	var response = {level: level};
+	if (ask_id) {
+		response.response_id = ask_id;
+	}
+		
+	scope.server.send(client.uid, response);
 };
 
-cylon.prototype.deleteUser = function(client, user) {
+cylon.prototype.deleteUser = function(client) {
 	var scope 			= this;
-	
-	delete scope.players[user.rid][user.level];				// Remove from the list of players
-	delete scope.playerAdd[user.rid][user.level+"."+user.id];		// Remove from the list of new players
-	delete scope.clients[client.uid];				// Remove from the list of clients
-	scope.playerDel[user.rid][user.level+"."+user.id]	= user;		// Remove from the online store
+	// We only count authentified users...
+	if (this.clients[client.uid]) {
+		var user 		= this.clients[client.uid].data;
+		delete scope.players[user.rid][user.level];				// Remove from the list of players
+		delete scope.playerAdd[user.rid][user.level+"."+user.id];		// Remove from the list of new players
+		delete scope.clients[client.uid];				// Remove from the list of clients
+		scope.playerDel[user.rid][user.level+"."+user.id]	= user;		// Remove from the online store
+	}
+}
+cylon.prototype.saveScore = function(client, score, ask_id) {
+	var scope 			= this;
+	var user 			= this.clients[client.uid].data;
+	var totalscore 		= 0;
+	for (i in score) {
+		if (!isNaN(score[i].score)) {
+			totalscore += score[i].score;
+		}
+	}
+						
+	scope.mysql.query("update races_scores set end_time="+Math.round(new Date().getTime()/1000)+", log='"+JSON.stringify(score)+"', score="+totalscore+" where racetoken='"+user.raceToken+"'", function(err, rows, fields) {
+		var response = {score: totalscore};
+		if (ask_id) {
+			response.response_id = ask_id;
+		}
+		scope.server.send(client.uid, response);
+	});
 }
 cylon.prototype.computeCount = function(callback) {
 	var scope = this;
@@ -315,6 +383,7 @@ cylon.prototype.auth = function(raceToken, onAuth) {
 	// Check if the raceToken is valid
 	scope.mysql.query("select u.email,u.firstname,u.lastname,u.id,r.rid from races_scores as r, users as u where u.id=r.uid and r.racetoken='"+raceToken+"'", function(err, rows, fields) {
 		if (rows.length > 0 && rows[0].id > 0) {
+			rows[0].raceToken = raceToken;
 			onAuth(true, rows[0]);
 		} else {
 			onAuth(false);

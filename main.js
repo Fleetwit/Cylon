@@ -14,6 +14,9 @@ _cluster.setupMaster({
     exec:	main
 });
 
+//@DEBUG
+//cpuCount = 1;
+
 for (var i = 0; i < cpuCount; i++) {
     createWorker();
 }

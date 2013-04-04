@@ -5,8 +5,6 @@ function stack() {
 }
 stack.prototype.reset = function() {
 	this.stack 		= [];
-	this.current 	= 0;
-	this.done		= 0;
 }
 stack.prototype.add = function(item, params) {
 	this.stack.push({
@@ -16,19 +14,15 @@ stack.prototype.add = function(item, params) {
 }
 stack.prototype.process = function(callback) {
 	var scope = this;
-	var i;
-	this.callback 		= callback;
-	for (i=0;i<this.stack.length;i++) {
-		this.stack[this.current].fn(this.stack[this.current].params,function() {
-			//console.log("DONE: ",scope.done,"/",scope.stack.length-1);
-			if (scope.done == scope.stack.length-1) {
-				//console.log("DONE!!");
-				callback();
-			}
-			scope.done++;
-		});
-		this.current++;
-	}
+	
+	this.stack[0].fn(this.stack[0].params,function() {
+		scope.stack.shift();
+		if (scope.stack.length == 0) {
+			callback();
+		} else {
+			scope.process(callback);
+		}
+	});
 }
 
 exports.stack = stack;
