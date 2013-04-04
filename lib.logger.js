@@ -2,6 +2,7 @@ var http 				= require('http');
 var uuid 				= require('./lib.uuid');
 var _ 					= require('underscore');
 var qs 					= require('querystring');
+var fs 					= require('fs');
 
 function logger(options) {
 	var scope = this;
@@ -25,26 +26,27 @@ function logger(options) {
 		label:		"LOGGER",
 		color:		"red"
 	},options);
-	
-	
 }
 logger.prototype.log = function(){
-	console.log(this.color[this.options.color]+this.options.label);
+	var args = [this.color[this.options.color]+this.options.label+"\n"];
 	for (i in arguments) {
-		console.log(this.color['reset'], arguments[i],this.color['reset']);
+		args.push(this.color['white']+arguments[i]+this.color['reset']+"\n");
 	}
+	console.log.apply(this, args);
 };
 logger.prototype.info = function(){
-	console.log(this.color[this.options.color]+this.options.label);
+	var args = [this.color[this.options.color]+this.options.label+"\n"];
 	for (i in arguments) {
-		console.log(this.color['blue'], arguments[i],this.color['reset']);
+		args.push(this.color['green']+arguments[i]+this.color['reset']+"\n");
 	}
+	console.log.apply(this, args);
 };
 logger.prototype.error = function(){
-	console.log(this.color[this.options.color]+this.options.label);
+	var args = [this.color[this.options.color]+this.options.label+"\n"];
 	for (i in arguments) {
-		console.log(this.color['red'],this.color['blink'], arguments[i],this.color['reset']);
+		args.push(this.color['red']+this.color['blink']+arguments[i]+this.color['reset']+"\n");
 	}
+	console.log.apply(this, args);
 };
 
 exports.logger = logger;
