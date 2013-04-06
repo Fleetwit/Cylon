@@ -14,7 +14,7 @@ var debug_mode		= true;
 function cylon() {
 	var scope 		= this;
 	
-	this.port		= 8080;
+	this.port		= 8024;
 	this.logger 	= new _logger({label:'Cylon:'+process.pid});
 	this.raceData	= {};		// Data on all the races
 	this.count		= {};		// Number of users per race and per level
@@ -65,7 +65,7 @@ cylon.prototype.init = function() {
 };
 cylon.prototype.serverInit = function() {
 	var scope = this;
-	this.logger.error("Server Starting");
+	this.logger.error("Server Starting on port "+this.port);
 	this.server = new _server(this.port, {
 		logger:		this.logger,
 		onConnect:	function(client) {
