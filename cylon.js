@@ -24,7 +24,7 @@ function cylon() {
 	this.clients	= {};		// Active clients on this process (with circular reference)
 	this.interval	= {
 		refresh:		60*5000,	// Refresh of race data
-		update:			20000		// Refresh of online count
+		update:			1000		// Refresh of online count
 	};
 	this.init();
 };
@@ -112,6 +112,8 @@ cylon.prototype.serverInit = function() {
 				scope.server.send(client.uid, response);
 			} else if (data.crashtest) {
 				crashnow();
+			} else if (data.saveLevel) {
+				scope.saveLevelData(client, data);
 			} else {
 				var response = {failed: true};
 				if (data.ask_id) {
@@ -337,9 +339,9 @@ cylon.prototype.deleteUser = function(client) {
 	if (this.clients[client.uid]) {
 		var user 		= this.clients[client.uid].data;
 		delete scope.players[user.rid][user.level];				// Remove from the list of players
-		delete scope.playerAdd[user.rid][user.level+"."+user.id];		// Remove from the list of new players
+		delete scope.playerAdd[user.rid]["list."+user.level+"."+user.id];		// Remove from the list of new players
 		delete scope.clients[client.uid];				// Remove from the list of clients
-		scope.playerDel[user.rid][user.level+"."+user.id]	= user;		// Remove from the online store
+		scope.playerDel[user.rid]["list."+user.level+"."+user.id]	= user;		// Remove from the online store
 	}
 }
 cylon.prototype.saveScore = function(client, score, ask_id) {
@@ -388,6 +390,34 @@ cylon.prototype.auth = function(raceToken, onAuth) {
 		} else {
 			onAuth(false);
 		}
+	});
+};
+cylon.prototype.saveLevelData = function(client, data) {
+	var scope 			= this;
+	var user 			= this.clients[client.uid].data;
+	var levelData		= data.saveLevel;
+	var levelIndex		= data.gameIndex;
+	
+	scope.mongo.getUser("datastore",user.id, function(collection, docs) {
+		
+		var buffer = {};
+		buffer['race.'+user.rid+"."+levelIndex]	= levelData;
+		
+		collection.update(
+			{
+				uid:			user.id
+			},{
+				$set: buffer
+			}, function(err, docs) {
+				var response = {
+					saveLevel: true
+				};
+				if (data.ask_id) {
+					response.response_id = data.ask_id;
+				}
+				scope.server.send(client.uid, response);
+			}
+		);
 	});
 };
 
