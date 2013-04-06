@@ -14,6 +14,8 @@ _cluster.setupMaster({
     exec:	main
 });
 
+console.log(_os.cpus());
+
 //@DEBUG
 //cpuCount = 1;
 
