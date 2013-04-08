@@ -289,8 +289,9 @@ cylon.prototype.registerUser = function(client, user) {
 	}
 	
 	// Add to the push list
-	console.log("scope.playerAdd",scope.playerAdd);
-	console.log("scope.playerAdd["+user.rid+"]",scope.playerAdd[user.rid]);
+	if (!scope.playerAdd[user.rid]) {
+		scope.playerAdd[user.rid] = {};
+	}
 	scope.playerAdd[user.rid]["list."+"0."+user.id]	= user;
 	
 	// remove the user from the Delete list, in case he was there (case: disconnect-reconnect in less than 500ms)
