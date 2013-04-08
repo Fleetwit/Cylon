@@ -212,6 +212,7 @@ cylon.prototype.updateCount = function(callback) {
 		for (i in scope.players) {
 			stack.add(function(params, onFinish) {
 				params.collection.find({players: true, rid:params.i}, {}).toArray(function(err, doc) {
+					console.log("doc",doc);
 					if (!doc[0].list) {
 						doc[0].list = {};
 					}

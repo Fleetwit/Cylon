@@ -147,7 +147,11 @@ simpleserver.prototype.broadcast = function(data, except) {
 	}
 	// broadcast
 	for (i in list) {
-		list[i].ws.send(this.wsencode(data));
+		try {
+			list[i].ws.send(this.wsencode(data));
+		} catch(e) {
+			// failed
+		}
 	}
 	
 }
