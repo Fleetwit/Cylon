@@ -137,7 +137,7 @@ cylon.prototype.serverInit = function() {
 			return {
 				cpu: 	_os.cpus()[0].times,
 				mem:	process.memoryUsage(),
-				online:	Object.keys(scope.players).length
+				online:	scope.server.count
 			};
 		}
 	});
