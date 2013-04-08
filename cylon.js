@@ -295,7 +295,9 @@ cylon.prototype.registerUser = function(client, user) {
 	scope.playerAdd[user.rid]["list."+"0."+user.id]	= user;
 	
 	// remove the user from the Delete list, in case he was there (case: disconnect-reconnect in less than 500ms)
-	delete scope.playerDel[user.rid]["list."+"0."+user.id];
+	if (scope.playerDel[user.rid]) {
+		delete scope.playerDel[user.rid]["list."+"0."+user.id];
+	}
 	
 	scope.server.send(client.uid, {
 		players:	scope.players,
