@@ -8,8 +8,9 @@ var _server 		= require('./lib.simpleserver').simpleserver;
 var _stack 			= require('./lib.stack').stack;
 var _redis 			= require("redis");
 var _mysql			= require('mysql');
+var reporter 		= require('./lib.reporter').reporter;
 
-var debug_mode		= true;
+var debug_mode		= false;
 
 function cylon() {
 	var scope 		= this;
@@ -127,6 +128,17 @@ cylon.prototype.serverInit = function() {
 			scope.deleteUser(client);
 			
 			
+		}
+	});
+	
+	this.reporter = new reporter({
+		label:		"cylon",
+		onRequest:	function() {
+			return {
+				cpu: 	_os.cpus()[0].times,
+				mem:	process.memoryUsage(),
+				online:	Object.keys(scope.players).length
+			};
 		}
 	});
 };
