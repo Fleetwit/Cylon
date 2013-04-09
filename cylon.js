@@ -10,7 +10,7 @@ var _redis 			= require("redis");
 var _mysql			= require('mysql');
 var reporter 		= require('./lib.reporter').reporter;
 
-var debug_mode		= false;
+var debug_mode		= true;
 
 function cylon() {
 	var scope 		= this;
@@ -136,6 +136,8 @@ cylon.prototype.serverInit = function() {
 		onRequest:	function() {
 			return {
 				cpu: 	_os.cpus()[0].times,
+				totalmem:	os.totalmem(),
+				freemem:	os.freemem(),
 				mem:	process.memoryUsage(),
 				count:	scope.server.count,
 				ocount:	scope.server.ocount
@@ -421,8 +423,36 @@ cylon.prototype.saveLevelData = function(client, data) {
 	
 	scope.mongo.getUser("datastore",user.id, function(collection, docs) {
 		
+		/*var buffer = {
+			race: {
+				race:	user.rid,
+				levels:	{
+					level:	levelIndex,
+					data:	levelData
+				}
+			}
+		};*/
+		
 		var buffer = {};
 		buffer['race.'+user.rid+"."+levelIndex]	= levelData;
+		
+		
+		
+		/*collection.update(
+			{
+				uid:			user.id
+			},{
+				$push: buffer
+			}, function(err, docs) {
+				var response = {
+					saveLevel: true
+				};
+				if (data.ask_id) {
+					response.response_id = data.ask_id;
+				}
+				scope.server.send(client.uid, response);
+			}
+		);*/
 		
 		collection.update(
 			{

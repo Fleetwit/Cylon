@@ -29,11 +29,8 @@ function simpleserver(port, options) {
 		
 		var uid 	= scope.onConnect(ws);
 		
-		// uid is a UUID@v4
-		//var uid 	= uuid.v4(); //scope.count;
-		
 		ws.on('message', function(message) {
-			scope.onReceive(ws, uid, scope.wsdecode(message));
+			scope.onReceive(ws, uid, message);
 		});
 		
 		ws.on('close', function(code, message) {
@@ -88,7 +85,7 @@ simpleserver.prototype.onReceive = function(ws, uid, message) {
 	ON CLOSE
 ****************/
 simpleserver.prototype.onClose  = function(ws, uid, message) {
-	this.ccount--;
+	//this.ccount--;
 	this.ocount--;
 	
 	delete this.users[uid];
@@ -148,7 +145,7 @@ simpleserver.prototype.broadcast = function(data, except) {
 	// broadcast
 	for (i in list) {
 		try {
-			list[i].ws.send(this.wsencode(data));
+			list[i].ws.send(data);
 		} catch(e) {
 			// failed
 		}

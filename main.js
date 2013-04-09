@@ -9,7 +9,7 @@ var options = {
 }
 var i;
 var workers				= {};
-var cpuCount			= _os.cpus().length;
+var cpuCount			= 1;_os.cpus().length;
 _cluster.setupMaster({
     exec:	main
 });
