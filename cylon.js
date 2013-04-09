@@ -136,8 +136,8 @@ cylon.prototype.serverInit = function() {
 		onRequest:	function() {
 			return {
 				cpu: 	_os.cpus()[0].times,
-				totalmem:	os.totalmem(),
-				freemem:	os.freemem(),
+				totalmem:	_os.totalmem(),
+				freemem:	_os.freemem(),
 				mem:	process.memoryUsage(),
 				count:	scope.server.count,
 				ocount:	scope.server.ocount
