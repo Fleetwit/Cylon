@@ -57,7 +57,10 @@ simpleserver.prototype.onConnect = function(ws) {
 		ws:		ws
 	};
 	
-	this.logger.log(this.ocount+" users online");
+	if (this.ocount % 100 == 0) {
+		console.log("\033[33m"+"online:\033[0m"+this.ocount);
+	}
+	//this.logger.log(this.ocount+" users online");
 	this.options.onConnect({
 		ws:		ws,
 		uid:	uid
@@ -90,7 +93,10 @@ simpleserver.prototype.onClose  = function(ws, uid, message) {
 	
 	delete this.users[uid];
 	
-	this.logger.log(this.ocount+" users online");
+	if (this.ocount % 100 == 0) {
+		console.log("\033[33m"+"online:\033[0m"+this.ocount);
+	}
+	//this.logger.log(this.ocount+" users online");
 	this.options.onQuit({
 		ws:		ws,
 		uid:	uid
