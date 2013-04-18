@@ -403,7 +403,6 @@ cylon.prototype.saveLevelData = function(wsid, data) {
 		collection.update(
 			{
 				uid:			user.id,
-				race:			user.rid,
 				type:			"overall"
 			},{
 				$inc: {
