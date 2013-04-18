@@ -216,7 +216,7 @@ cylon.prototype.updateCount = function(callback) {
 		// Update count
 		for (i in scope.inc) {
 			stack.add(function(params, onFinish) {
-				params.collection.findAndModify({count: true, race:params.i}, [['_id','asc']], {$inc: scope.inc[params.i]}, {upsert:true}, function(err, data) {
+				/*params.collection.findAndModify({count: true, race:params.i}, [['_id','asc']], {$inc: scope.inc[params.i]}, {upsert:true}, function(err, data) {
 					scope.count[params.i] = data;
 					// remove data we don't need
 					delete scope.count[params.i]["_id"];
@@ -226,6 +226,23 @@ cylon.prototype.updateCount = function(callback) {
 					scope.inc[params.i] = {};
 					
 					onFinish();
+				});*/
+				params.collection.update({count: true, race:params.i}, {$inc: scope.inc[params.i]}, {upsert:true}, function(err1, data1) {
+					params.collection.find({count: true, race:params.i}, {
+						limit:1
+					}).toArray(function(err, docs) {
+						if (docs.length > 0) {
+							data = docs[0];
+							scope.count[params.i] = data;
+							// remove data we don't need
+							delete scope.count[params.i]["_id"];
+							delete scope.count[params.i]["count"];
+							delete scope.count[params.i]["race"];
+							// reset the inc counter
+							scope.inc[params.i] = {};
+						}
+						onFinish();
+					});
 				});
 			}, _.extend({},{i:i,collection:collection}));
 		}
@@ -269,7 +286,6 @@ cylon.prototype.registerUser = function(wsid, user) {
 		scope.inc[user.rid][0] = 0;
 	}
 	scope.inc[user.rid][0]++;
-	
 };
 cylon.prototype.userSetLevel = function(wsid, level, ask_id) {
 	var scope 			= this;

@@ -45,7 +45,7 @@ if (_cluster.isMaster) {
 		setInterval(function() {
 			var time = new Date().getTime();
 			for (pid in workers) {
-				if (workers[pid] && workers[pid].lastCheck + 5000 < time) {
+				if (workers[pid] && workers[pid].lastCheck + 10000 < time) {
 					console.log("TIMEOUT: ", pid);
 					workers[pid].worker.process.kill();
 					delete workers[pid];

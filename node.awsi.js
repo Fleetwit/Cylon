@@ -62,6 +62,7 @@ awsi.server.prototype.onConnect = function(ws) {
 	return this.tcount;
 }
 awsi.server.prototype.send = function(uid, data) {
+	//console.log(">>>>>>>>",uid, data);
 	data = JSON.stringify(data);
 	this.clients[uid].ws.send(data);
 }
